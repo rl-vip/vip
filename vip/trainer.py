@@ -15,6 +15,8 @@ import time
 import copy
 import torchvision.transforms as T
 
+from tcc.alignment import compute_alignment_loss
+
 epsilon = 1e-8
 def do_nothing(x): return x
 
@@ -22,7 +24,7 @@ class Trainer():
     def __init__(self, eval_freq):
         self.eval_freq = eval_freq
 
-    def update(self, model, batch, step, eval=False):
+    def update(self, model, batch, step, use_tcc_loss, use_reward_tcc_loss, tcc_loss_type, eval=False):
         t0 = time.time()
         metrics = dict()
         if eval:
@@ -66,6 +68,21 @@ class Trainer():
         V_s_next = model.module.sim(es1_vip, eg)
         V_loss = (1-model.module.gamma) * -V_0.mean() + torch.log(epsilon + torch.mean(torch.exp(-(r + model.module.gamma * V_s_next - V_s))))
 
+        ## TCC Loss
+        if use_tcc_loss:
+            raise NotImplementedError('tcc_loss not implemented yet')
+            #TODO: derive videos from b_im, b_reward = batch
+            #TODO: seq_lens should be provided
+            tcc_loss = compute_alignment_loss(videos, bs, stochastic_matching=True, loss_type=)
+            full_loss += tcc_loss
+            metrics['tcc_loss'] = tcc_loss.item()
+        if use_reward_tcc_loss:
+            raise NotImplementedError('reward_tcc_loss not implemented yet')
+            #TODO: derive rewards from videos
+            r_tcc_loss = compute_alignment_loss(rewards, bs, stochastic_matching=True)
+            full_loss += tcc_loss
+            metrics['reward_tcc_loss'] = r_tcc_loss.item()
+
         # Optionally, add additional "negative" observations
         V_s_neg = []
         V_s_next_neg = []
@@ -95,4 +112,4 @@ class Trainer():
         t5 = time.time()    
 
         st = f"Load time {t1-t0}, Batch time {t2-t1}, Encode and LP time {t3-t2}, VIP time {t4-t3}, Backprop time {t5-t4}"
-        return metrics,st
+        return metrics, st

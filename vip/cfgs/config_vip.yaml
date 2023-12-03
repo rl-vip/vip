@@ -36,3 +36,9 @@ agent:
   l2weight: 0.0
   l1weight: 0.0
   num_negatives: 0
+
+
+# tcc loss
+tcc: false
+reward_tcc: false
+tcc_loss_type: "regression"

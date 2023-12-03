@@ -91,7 +91,7 @@ class Workspace:
             t0 = time.time()
             batch_f, batch_rewards = next(self.train_loader)
             t1 = time.time()
-            metrics, st = trainer.update(self.model, (batch_f.cuda(), batch_rewards), self.global_step)
+            metrics, st = trainer.update(self.model, (batch_f.cuda(), batch_rewards), self.global_step, self.cfg.tcc, self.cfg.reward_tcc, self.cfg.tcc_loss_type)
             t2 = time.time()
             self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
