@@ -20,6 +20,8 @@ from vip.utils.data_loaders import VIPBuffer
 from vip.utils.logger import Logger
 import time
 
+from tqdm import tqdm
+
 torch.backends.cudnn.benchmark = True
 
 
@@ -85,13 +87,19 @@ class Workspace:
         trainer = Trainer(eval_freq)
 
         ## Training Loop
-        print("Begin Training")
+        # print("Begin Training")
+        # progress = tqdm(total=self.cfg.train_steps)
         while train_until_step(self.global_step):
             ## Sample Batch
             t0 = time.time()
-            batch_f, batch_rewards = next(self.train_loader)
+            if self.cfg.tcc:
+                batch_f, batch_rewards, batch_frames, batch_vidlen, batch_steps, batch_lastframes = next(self.train_loader)
+                batch = (batch_f.cuda(), batch_rewards.cuda(), batch_frames.cuda(), batch_vidlen.cuda(), batch_steps.cuda(), batch_lastframes.cuda())
+            else:
+                batch_f, batch_rewards = next(self.train_loader)
+                batch = (batch_f.cuda(), batch_rewards)
             t1 = time.time()
-            metrics, st = trainer.update(self.model, (batch_f.cuda(), batch_rewards), self.global_step, self.cfg.tcc, self.cfg.reward_tcc, self.cfg.tcc_loss_type)
+            metrics, st = trainer.update(self.model, batch, self.global_step, self.cfg.tcc, self.cfg.feat_tcc, self.cfg.reward_tcc, self.cfg.tcc_loss_type)
             t2 = time.time()
             self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
@@ -101,13 +109,19 @@ class Workspace:
                 
             if eval_every_step(self.global_step):
                 with torch.no_grad():
-                    batch_f, batch_rewards = next(self.val_loader)
-                    metrics, st = trainer.update(self.model, (batch_f.cuda(), batch_rewards), self.global_step, eval=True)
+                    if self.cfg.tcc:
+                        batch_f, batch_rewards, batch_frames, batch_vidlen, batch_steps, batch_lastframes = next(self.val_loader)
+                        batch = (batch_f.cuda(), batch_rewards.cuda(), batch_frames.cuda(), batch_vidlen.cuda(), batch_steps.cuda(), batch_lastframes.cuda())
+                    else:
+                        batch_f, batch_rewards = next(self.val_loader)
+                        batch = (batch_f.cuda(), batch_rewards)
+                    metrics, st = trainer.update(self.model, batch, self.global_step, self.cfg.tcc, self.cfg.feat_tcc, self.cfg.reward_tcc, self.cfg.tcc_loss_type, eval=True)
                     self.logger.log_metrics(metrics, self.global_frame, ty='eval')
                     print("EVAL", self.global_step, metrics)
 
                     self.save_snapshot()
             self._global_step += 1
+            # progress.update(1)
 
     def save_snapshot(self):
         snapshot = self.work_dir / f'snapshot_{self.global_step}.pt'

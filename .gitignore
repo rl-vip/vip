@@ -3,3 +3,4 @@ outputs/
 *.egg-info
 __pycache__/
 .nfs*
+success_exp/

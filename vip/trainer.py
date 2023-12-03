@@ -24,7 +24,7 @@ class Trainer():
     def __init__(self, eval_freq):
         self.eval_freq = eval_freq
 
-    def update(self, model, batch, step, use_tcc_loss, use_reward_tcc_loss, tcc_loss_type, eval=False):
+    def update(self, model, batch, step, use_tcc, use_tcc_loss, use_reward_tcc_loss, tcc_loss_type, eval=False):
         t0 = time.time()
         metrics = dict()
         if eval:
@@ -34,7 +34,7 @@ class Trainer():
 
         t1 = time.time()
         ## Batch
-        b_im, b_reward = batch
+        b_im, b_reward, frames, vidlen, steps, lastframe = batch
         t2 = time.time()
 
         ## Encode Start and End Frames
@@ -49,7 +49,6 @@ class Trainer():
         eg = alle[:, 1] # final, o_g
         es0_vip = alle[:, 2] # o_t
         es1_vip = alle[:, 3] # o_t+1
-
         full_loss = 0
 
         ## LP Loss
@@ -69,19 +68,25 @@ class Trainer():
         V_loss = (1-model.module.gamma) * -V_0.mean() + torch.log(epsilon + torch.mean(torch.exp(-(r + model.module.gamma * V_s_next - V_s))))
 
         ## TCC Loss
-        if use_tcc_loss:
-            raise NotImplementedError('tcc_loss not implemented yet')
-            #TODO: derive videos from b_im, b_reward = batch
-            #TODO: seq_lens should be provided
-            tcc_loss = compute_alignment_loss(videos, bs, stochastic_matching=True, loss_type=)
-            full_loss += tcc_loss
-            metrics['tcc_loss'] = tcc_loss.item()
-        if use_reward_tcc_loss:
-            raise NotImplementedError('reward_tcc_loss not implemented yet')
-            #TODO: derive rewards from videos
-            r_tcc_loss = compute_alignment_loss(rewards, bs, stochastic_matching=True)
-            full_loss += tcc_loss
-            metrics['reward_tcc_loss'] = r_tcc_loss.item()
+        if use_tcc:
+            stack_num = frames.shape[1]
+            frames = frames.reshape(bs*stack_num, 3, H, W)
+            frame_feats = model(frames)
+            frame_feats = frame_feats.reshape(bs, stack_num, -1)
+            if use_tcc_loss:
+                tcc_loss = compute_alignment_loss(frame_feats, bs, stochastic_matching=True, loss_type=tcc_loss_type, seq_lens=vidlen)
+                full_loss += tcc_loss
+                metrics['tcc_loss'] = tcc_loss.item()
+            if use_reward_tcc_loss:
+                last_frame_feats = model(lastframe)
+                pseudo_rs = []
+                for i in range(bs):
+                    pseudo_r = torch.linalg.norm(last_frame_feats[i] - frame_feats[i], dim=-1)
+                    pseudo_rs.append(pseudo_r)
+                pseudo_rs = torch.stack(pseudo_rs, dim=0).unsqueeze(-1)
+                r_tcc_loss = compute_alignment_loss(pseudo_rs, bs, stochastic_matching=True, loss_type=tcc_loss_type, seq_lens=vidlen)
+                full_loss += r_tcc_loss
+                metrics['reward_tcc_loss'] = r_tcc_loss.item()
 
         # Optionally, add additional "negative" observations
         V_s_neg = []

@@ -39,7 +39,7 @@ def get_ind(vid, index, ds="ego4d"):
 
 ## Data Loader for VIP
 class VIPBuffer(IterableDataset):
-    def __init__(self, datasource='ego4d', datapath=None, num_workers=10, doaug = "none", num_steps=10, num_context_steps=2, context_stride =5, TCC = False):
+    def __init__(self, datasource='ego4d', datapath=None, num_workers=10, doaug = "none", num_steps=8, num_context_steps=2, context_stride =3, TCC = False):
         self._num_workers = max(1, num_workers)
         self.datasource = datasource
         self.datapath = datapath
@@ -139,16 +139,21 @@ class VIPBuffer(IterableDataset):
             imts1_vip = self.aug(get_ind(vid, s1_ind_vip, self.datasource) / 255.0) * 255.0
 
         im = torch.stack([im0, img, imts0_vip, imts1_vip])
+        # print("Before",im.shape)
         im = self.preprocess(im)
+        # print("After",im.shape)
         if self.TCC:
-            steps = torch.sort(torch.randperm(vidlen)[:self.num_steps])
-            steps_with_context = torch.cat([self._get_context_steps(step,vidlen) for step in steps.values.numpy()])
+
+            steps = np.sort(np.random.permutation(vidlen)[:self.num_steps])
+            steps_with_context = torch.cat([self._get_context_steps(step,vidlen) for step in steps])
             frames = []
             for ind in steps_with_context:
-                im = get_ind(vid, ind, self.datasource)
-                im = im.float()
-                im = (im / 127.5) - 1.0
-                frames.append(im)
+                if ind >= vidlen:
+                    frame = torch.zeros(224,224)
+                else:
+                    frame = get_ind(vid, ind, self.datasource)
+                    frame = self.preprocess(frame)
+                frames.append(frame)
 
             transform = transforms.Compose([
                 transforms.ToPILImage(),
@@ -156,8 +161,9 @@ class VIPBuffer(IterableDataset):
                 transforms.ToTensor(),
             ])
 
-            frames = torch.stack([transform(frame) for frame in frames])
-            return (im, reward, frames, vidlen, steps)
+            frames = torch.stack([(frame) for frame in frames])
+            lastframe = get_ind(vid, vidlen-1, self.datasource)
+            return (im, reward, frames, torch.tensor(vidlen), torch.tensor(steps), self.preprocess(lastframe))
         return (im, reward)
 
     def __iter__(self):

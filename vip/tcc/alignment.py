@@ -31,7 +31,7 @@ def compute_alignment_loss(embs,
 
     # If steps has not been provided assume sampling has been done uniformly.
     if steps is None:
-        steps = torch.arange(0, num_steps).unsqueeze(0).repeat([batch_size, 1])
+        steps = torch.arange(0, num_steps).unsqueeze(0).repeat([batch_size, 1]).to('cuda:0')
 
     # print(steps.size())
 

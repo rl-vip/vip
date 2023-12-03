@@ -73,7 +73,6 @@ def _align(cycles, embs, num_steps, num_cycles, cycle_length,
 
   logits = torch.cat(logits_list, dim=0)
   labels = torch.cat(labels_list, dim=0)
-
   return logits, labels
 
 def gen_cycles(num_cycles, batch_size, cycle_length=2):

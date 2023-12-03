@@ -79,6 +79,7 @@ def regression_loss(logits, labels, num_steps, steps, seq_lens, loss_type,
      loss: Tensor, A scalar loss calculated using a variant of regression.
     """
     # Just to be safe, we stop gradients from labels as we are generating labels.
+    labels = labels.to('cuda:0')
     labels = labels.detach()
     steps = steps.detach()
 
