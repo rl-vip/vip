@@ -39,10 +39,15 @@ def get_ind(vid, index, ds="ego4d"):
 
 ## Data Loader for VIP
 class VIPBuffer(IterableDataset):
-    def __init__(self, datasource='ego4d', datapath=None, num_workers=10, doaug = "none"):
+    def __init__(self, datasource='ego4d', datapath=None, num_workers=10, doaug = "none", num_steps=10, num_context_steps=2, context_stride =5, TCC = False):
         self._num_workers = max(1, num_workers)
         self.datasource = datasource
         self.datapath = datapath
+        self.num_steps = num_steps
+        self.num_context_steps = num_context_steps
+        self.context_stride = context_stride
+        self.TCC = TCC
+        self.max_seq_len = 0
         assert(datapath is not None)
         self.doaug = doaug
         
@@ -65,6 +70,23 @@ class VIPBuffer(IterableDataset):
             print(self.manifest)
             self.ego4dlen = len(self.manifest)
 
+        # Get Max video sequence len
+        if self.TCC:
+            video_paths = sorted(glob.glob(f"{self.datapath}/*"))
+            print('Found %d videos to align.'%len(video_paths))
+            video_seq_lens = []
+            for video_filename in video_paths:
+                vidlen = len(glob.glob(f'{video_filename}/*.png'))
+                video_seq_lens.append(vidlen)
+            self.max_seq_len = max(video_seq_lens)
+
+    def _get_context_steps(self, step, seq_len):
+        return torch.arange(
+            step - (self.num_context_steps - 1) * self.context_stride,
+            step + self.context_stride,
+            self.context_stride
+        ).clamp(0, seq_len - 1)
+    
     def _sample(self):
         # Sample a video from datasource
         if self.datasource == 'ego4d':
@@ -73,7 +95,7 @@ class VIPBuffer(IterableDataset):
             vidlen = m["len"]
             vid = m["path"]
         else: 
-            video_paths = glob.glob(f"{self.datapath}/[0-9]*")
+            video_paths = glob.glob(f"{self.datapath}/*")
             num_vid = len(video_paths)
 
             video_id = np.random.randint(0, int(num_vid)) 
@@ -118,6 +140,24 @@ class VIPBuffer(IterableDataset):
 
         im = torch.stack([im0, img, imts0_vip, imts1_vip])
         im = self.preprocess(im)
+        if self.TCC:
+            steps = torch.sort(torch.randperm(vidlen)[:self.num_steps])
+            steps_with_context = torch.cat([self._get_context_steps(step,vidlen) for step in steps.values.numpy()])
+            frames = []
+            for ind in steps_with_context:
+                im = get_ind(vid, ind, self.datasource)
+                im = im.float()
+                im = (im / 127.5) - 1.0
+                frames.append(im)
+
+            transform = transforms.Compose([
+                transforms.ToPILImage(),
+                transforms.Resize((168, 168)),
+                transforms.ToTensor(),
+            ])
+
+            frames = torch.stack([transform(frame) for frame in frames])
+            return (im, reward, frames, vidlen, steps)
         return (im, reward)
 
     def __iter__(self):

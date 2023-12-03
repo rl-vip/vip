@@ -8,7 +8,7 @@ save_snapshot: false
 load_snap: ""
 
 # replay buffer
-num_workers: 10
+num_workers: 1
 batch_size: 32 
 train_steps: 10001
 eval_freq: 1000
@@ -23,8 +23,8 @@ wandbuser:
 wandbproject: 
 
 # data
-dataset:
-datapath: 
+dataset: "drawer-close-random"
+datapath: "/tmp2/davis/sawyer/test"
 doaug: "none"
 
 agent:

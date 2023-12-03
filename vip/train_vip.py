@@ -30,7 +30,7 @@ def make_network(cfg):
     return model.cuda()
 
 class Workspace:
-    def __init__(self, cfg, logging=True):
+    def __init__(self, cfg, logging=False):
         self.work_dir = Path.cwd()
         print(f'workspace: {self.work_dir}')
 
@@ -41,8 +41,8 @@ class Workspace:
             self.setup()
 
         print("Creating Dataloader")
-        train_iterable = VIPBuffer(datasource=self.cfg.dataset, datapath=self.cfg.datapath, num_workers=self.cfg.num_workers, doaug=self.cfg.doaug)
-        val_iterable = VIPBuffer(datasource=self.cfg.dataset, datapath=self.cfg.datapath, num_workers=self.cfg.num_workers, doaug=0)
+        train_iterable = VIPBuffer(datasource=self.cfg.dataset, datapath=self.cfg.datapath, num_workers=self.cfg.num_workers, doaug=self.cfg.doaug, TCC=self.cfg.tcc)
+        val_iterable = VIPBuffer(datasource=self.cfg.dataset, datapath=self.cfg.datapath, num_workers=self.cfg.num_workers, doaug=0, TCC=self.cfg.tcc)
 
         self.train_loader = iter(torch.utils.data.DataLoader(train_iterable,
                                          batch_size=self.cfg.batch_size,
